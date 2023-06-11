@@ -3,6 +3,7 @@
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 
+// Your wifi name and password, change it urself
 const char *ssid = "HiVe";
 const char *password = "punyapeija";
 
