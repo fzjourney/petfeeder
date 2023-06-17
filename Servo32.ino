@@ -3,9 +3,8 @@
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 
-// Your wifi name and password, change it urself
-const char *ssid = "HiVe";
-const char *password = "punyapeija";
+const char *ssid = "";  //Wifi name
+const char *password = "";  //Wifi password
 
 WiFiServer server(80);
 Servo servo;
@@ -27,6 +26,69 @@ int scheduledMinute = -1;
 
 const int maxHistoryCount = 5;
 String scheduleHistory[maxHistoryCount];
+
+String getTimeString(int hour, int minute)
+{
+    String hourString = (hour < 10) ? "0" + String(hour) : String(hour);
+    String minuteString = (minute < 10) ? "0" + String(minute) : String(minute);
+    return hourString + ":" + minuteString;
+}
+
+void feed()
+{
+    servo.write(openAngle);
+    delay(feedingDuration);
+    servo.write(closeAngle);
+}
+
+void enableAutomaticFeeding()
+{
+    automaticFeedingEnabled = true;
+}
+
+void disableAutomaticFeeding()
+{
+    automaticFeedingEnabled = false;
+}
+
+void updateScheduleHistory(int hour, int minute)
+{
+  // Get the current date and time
+  String dateString = timeClient.getFormattedTime();
+  String timeString = getTimeString(hour, minute);
+  String dateTimeString = "Time Taken: " + dateString + " | " + "Time Scheduled: " + timeString;
+
+  // Shift the history entries down
+  for (int i = maxHistoryCount - 1; i > 0; i--) {
+    scheduleHistory[i] = scheduleHistory[i - 1];
+  }
+
+  // Add the new schedule entry at the first position
+  scheduleHistory[0] = dateTimeString;
+}
+
+void handleSetSchedule(WiFiClient &client)
+{
+    String request = client.readString();
+    int hourIndex = request.indexOf("hour=");
+    int minuteIndex = request.indexOf("&minute=");
+    if (hourIndex != -1 && minuteIndex != -1)
+    {
+        String hourValue = request.substring(hourIndex + 5, minuteIndex);
+        String minuteValue = request.substring(minuteIndex + 8);
+        int hour = hourValue.toInt();
+        int minute = minuteValue.toInt();
+        if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59)
+        {
+            scheduledHour = hour;
+            scheduledMinute = minute;
+            updateScheduleHistory(hour, minute);
+        }
+    }
+    client.println("HTTP/1.1 302 Found");
+    client.println("Location: /");
+    client.println();
+}
 
 void setup()
 {
@@ -111,7 +173,7 @@ void loop()
 
                         client.println("<h2>Set Schedule</h2>");
                         client.println("<div>");
-                        client.println("<form method=\"POST\" action=\"/set-schedule\">");
+                        client.println("<form action=\"/set-schedule\">");
                         client.println("<label for=\"hour\">Hour:</label>");
                         client.println("<input type=\"number\" id=\"hour\" name=\"hour\" min=\"0\" max=\"23\">");
                         client.println("<label for=\"minute\">Minute:</label>");
@@ -156,7 +218,7 @@ void loop()
                 {
                     disableAutomaticFeeding();
                 }
-                else if (currentLine.endsWith("POST /set-schedule"))
+                else if (currentLine.endsWith("GET /set-schedule"))
                 {
                     handleSetSchedule(client);
                 }
@@ -184,68 +246,4 @@ void loop()
         scheduledHour = -1; // Set scheduledHour dan scheduledMinute kembali ke nilai awal
         scheduledMinute = -1;
     }
-}
-
-void feed()
-{
-    servo.write(openAngle);
-    delay(feedingDuration);
-    servo.write(closeAngle);
-}
-
-void enableAutomaticFeeding()
-{
-    automaticFeedingEnabled = true;
-}
-
-void disableAutomaticFeeding()
-{
-    automaticFeedingEnabled = false;
-}
-
-void handleSetSchedule(WiFiClient &client)
-{
-    String request = client.readString();
-    int hourIndex = request.indexOf("hour=");
-    int minuteIndex = request.indexOf("&minute=");
-    if (hourIndex != -1 && minuteIndex != -1)
-    {
-        String hourValue = request.substring(hourIndex + 5, minuteIndex);
-        String minuteValue = request.substring(minuteIndex + 8);
-        int hour = hourValue.toInt();
-        int minute = minuteValue.toInt();
-        if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59)
-        {
-            scheduledHour = hour;
-            scheduledMinute = minute;
-            updateScheduleHistory(hour, minute);
-        }
-    }
-    client.println("HTTP/1.1 302 Found");
-    client.println("Location: /");
-    client.println();
-}
-
-void updateScheduleHistory(int hour, int minute) 
-{
-  // Get the current date and time
-  String dateString = timeClient.getFormattedTime();
-  String timeString = getTimeString(hour, minute);
-  String dateTimeString = "Time Taken: " + dateString + " | " + "Time Scheduled: " + timeString;
-
-  // Shift the history entries down
-  for (int i = maxHistoryCount - 1; i > 0; i--) {
-    scheduleHistory[i] = scheduleHistory[i - 1];
-  }
-
-  // Add the new schedule entry at the first position
-  scheduleHistory[0] = dateTimeString;
-}
-
-
-String getTimeString(int hour, int minute)
-{
-    String hourString = (hour < 10) ? "0" + String(hour) : String(hour);
-    String minuteString = (minute < 10) ? "0" + String(minute) : String(minute);
-    return hourString + ":" + minuteString;
 }
